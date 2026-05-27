@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Overnight 815</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-left">
+            <div class="logo-text"><i class="fas fa-meteor" style="color: var(--accent-color);"></i> Overnight 815</div>
+            <div class="search-bar">
+                <i class="fas fa-search" style="color: var(--text-muted);"></i>
+                <input type="text" id="searchInput" placeholder="ค้นหาชื่อหรือ IG username...">
+            </div>
+        </div>
+        <div class="nav-right">
+            <button class="btn admin-only" onclick="openModal('addModal')"><i class="fas fa-plus"></i> เพิ่มรายชื่อ</button>
+            <button class="btn btn-primary" id="loginBtn" onclick="toggleLogin()"><i class="far fa-user"></i> LOGIN</button>
+        </div>
+    </nav>
+
+    <div class="sub-nav">
+        <div class="tabs">
+            <span class="user-count"><i class="fas fa-user-friends"></i> <span id="countDisplay">0</span> คน</span>
+            <button class="tab-btn active" data-tab="All">All</button>
+            <button class="tab-btn" data-tab="Boss">Boss</button>
+            <button class="tab-btn" data-tab="Admin">Admin</button>
+            <button class="tab-btn" data-tab="Staff">Staff</button>
+            <button class="tab-btn" data-tab="Member">Member</button>
+        </div>
+        <div class="view-toggles">
+            <button class="view-btn active" id="btnGrid"><i class="fas fa-th-large"></i></button>
+            <button class="view-btn" id="btnList"><i class="fas fa-list"></i></button>
+        </div>
+    </div>
+
+    <div class="banner-container"></div>
+
+    <main class="content-area">
+        <div class="user-container grid-view" id="userContainer"></div>
+    </main>
+
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Admin Login</h2>
+                <button class="icon-btn" onclick="closeModal('loginModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="loginForm">
+                <div class="form-group"><label>Username</label><input type="text" id="logUser" required></div>
+                <div class="form-group"><label>Password</label><input type="password" id="logPass" required></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; margin-top: 10px;">เข้าสู่ระบบ</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>เพิ่มรายชื่อใหม่</h2>
+                <button class="icon-btn" onclick="closeModal('addModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="addForm">
+                <div class="form-group"><label>ชื่อ-นามสกุล / ชื่อเล่น</label><input type="text" id="inpName" required></div>
+                <div class="form-group"><label>ลิงก์ Instagram (URL)</label><input type="url" id="inpIG" placeholder="https://instagram.com/..." required></div>
+                <div class="form-group"><label>ตำแหน่ง</label>
+                    <select id="inpCategory">
+                        <option value="Boss">Boss</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Staff">Staff</option>
+                        <option value="Member" selected>Member</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>URL รูปโปรไฟล์ (ไม่ใส่ก็ได้)</label><input type="url" id="inpAvatar"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; margin-top: 10px;">บันทึกข้อมูล</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let isAdmin = false;
+        let users = [];
+        let currentTab = "All";
+        let currentSearch = "";
+
+        async function init() {
+            await checkAuth();
+            await fetchUsers();
+            setupEvents();
+        }
+
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/auth/status');
+                const data = await res.json();
+                setAdminState(data.isAdmin);
+            } catch (err) { console.error(err); }
+        }
+
+        async function fetchUsers() {
+            try {
+                const res = await fetch('/api/users');
+                users = await res.json();
+                renderUsers();
+            } catch (err) { console.error(err); }
+        }
+
+        function renderUsers() {
+            const container = document.getElementById('userContainer');
+            container.innerHTML = '';
+            
+            let filtered = users.filter(u => {
+                const matchTab = currentTab === "All" || u.category === currentTab;
+                const matchSearch = u.name.toLowerCase().includes(currentSearch) || u.ig.toLowerCase().includes(currentSearch);
+                return matchTab && matchSearch;
+            });
+
+            document.getElementById('countDisplay').innerText = filtered.length;
+
+            filtered.forEach(u => {
+                const defAvatar = "https://ui-avatars.com/api/?name=" + u.name + "&background=1a1a24&color=9d4edd";
+                const imgSrc = u.avatar ? u.avatar : defAvatar;
+                const favClass = u.is_fav ? 'fas fa-star active' : 'far fa-star';
+                const delBtn = isAdmin ? `<button class="icon-btn del" onclick="deleteUser(${u.id})"><i class="fas fa-trash"></i></button>` : '';
+                const favBtn = `<button class="icon-btn fav" onclick="toggleFav(${u.id})"><i class="${favClass}"></i></button>`;
+
+                let igUrl = u.ig.startsWith('http') ? u.ig : `https://instagram.com/${u.ig}`;
+                let igDisplay = u.ig;
+                if (u.ig.includes('instagram.com/')) {
+                    igDisplay = '@' + u.ig.split('instagram.com/')[1].split('/')[0].split('?')[0];
+                } else if (!u.ig.startsWith('http')) {
+                    igDisplay = '@' + u.ig;
+                } else {
+                    igDisplay = 'Profile Link';
+                }
+
+                const card = document.createElement('div');
+                card.className = 'user-card';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="badge ${u.category.toLowerCase()}">${u.category}</div>
+                        <div class="action-btns">${favBtn}${delBtn}</div>
+                    </div>
+                    <img src="${imgSrc}" class="avatar">
+                    <div class="user-info">
+                        <div class="user-name">${u.name}</div>
+                        <div class="user-ig">${igDisplay}</div>
+                    </div>
+                    <a href="${igUrl}" target="_blank" class="ig-link"><i class="fab fa-instagram"></i> Instagram</a>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('logUser').value;
+            const p = document.getElementById('logPass').value;
+            
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            
+            if (res.ok) {
+                setAdminState(true);
+                closeModal('loginModal');
+                document.getElementById('loginForm').reset();
+            } else {
+                const data = await res.json();
+                alert(data.message);
+            }
+        });
+
+        async function toggleLogin() {
+            if (isAdmin) {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                setAdminState(false);
+            } else {
+                openModal('loginModal');
+            }
+        }
+
+        function setAdminState(state) {
+            isAdmin = state;
+            const btn = document.getElementById('loginBtn');
+            const adminEls = document.querySelectorAll('.admin-only');
+            
+            if (state) {
+                btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> LOGOUT';
+                btn.classList.remove('btn-primary');
+                adminEls.forEach(el => el.style.display = 'flex');
+            } else {
+                btn.innerHTML = '<i class="far fa-user"></i> LOGIN';
+                btn.classList.add('btn-primary');
+                adminEls.forEach(el => el.style.display = 'none');
+            }
+            renderUsers();
+        }
+
+        document.getElementById('addForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('inpName').value,
+                ig: document.getElementById('inpIG').value.trim(),
+                category: document.getElementById('inpCategory').value,
+                avatar: document.getElementById('inpAvatar').value
+            };
+            
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                await fetchUsers();
+                closeModal('addModal');
+                document.getElementById('addForm').reset();
+                document.querySelector(`[data-tab="${payload.category}"]`).click();
+            } else {
+                alert('เซสชั่นหมดอายุ กรุณา Login ใหม่');
+            }
+        });
+
+        async function deleteUser(id) {
+            if(confirm('ลบรายชื่อนี้ใช่หรือไม่?')) {
+                await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                fetchUsers();
+            }
+        }
+
+        async function toggleFav(id) {
+            await fetch(`/api/users/${id}/fav`, { method: 'POST' });
+            fetchUsers();
+        }
+
+        function setupEvents() {
+            document.getElementById('searchInput').addEventListener('input', (e) => { currentSearch = e.target.value.toLowerCase(); renderUsers(); });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentTab = e.target.getAttribute('data-tab');
+                    renderUsers();
+                });
+            });
+            document.getElementById('btnGrid').addEventListener('click', (e) => { document.getElementById('userContainer').className = 'user-container grid-view'; e.currentTarget.classList.add('active'); document.getElementById('btnList').classList.remove('active'); });
+            document.getElementById('btnList').addEventListener('click', (e) => { document.getElementById('userContainer').className = 'user-container list-view'; e.currentTarget.classList.add('active'); document.getElementById('btnGrid').classList.remove('active'); });
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        init();
+
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        document.onkeydown = function(e) {
+            if(e.keyCode == 123) { return false; } 
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; }
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; }
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; }
+            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; }
+        }
+    </script>
+</body>
+</html>
