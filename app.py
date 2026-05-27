@@ -1,4 +1,5 @@
 import os
+import shutil
 import logging
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -13,6 +14,13 @@ app.secret_key = 'garaxy_811_super_secret_key_neon'
 ADMIN_USERNAME = 'GARAXY 811'
 ADMIN_PASSWORD = 'Realsun 211105'
 # ==========================================
+
+# --- ส่วนที่เพิ่มเข้ามาเพื่อแก้ปัญหา Vercel 500 Error ---
+# เช็คว่าระบบกำลังรันอยู่บน Vercel หรือไม่ (Vercel จะมีตัวแปร VERCEL ใน Environment)
+IS_VERCEL = 'VERCEL' in os.environ
+# ถ้าใช่ ให้ใช้โฟลเดอร์ /tmp ที่อนุญาตให้เขียนไฟล์ได้ชั่วคราว
+DB_PATH = '/tmp/garaxy.db' if IS_VERCEL else 'garaxy.db'
+# ---------------------------------------------------
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -40,7 +48,12 @@ def custom_logger(response):
     return response
 
 def get_db():
-    conn = sqlite3.connect('garaxy.db')
+    # ถ้าอยู่บน Vercel และยังไม่มีไฟล์ DB ใน /tmp ให้ก๊อปปี้จากต้นฉบับมาใช้
+    if IS_VERCEL and not os.path.exists(DB_PATH):
+        if os.path.exists('garaxy.db'):
+            shutil.copy2('garaxy.db', DB_PATH)
+            
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
