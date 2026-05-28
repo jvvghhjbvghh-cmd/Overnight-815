@@ -3,20 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Overnight 815</title>
+    <title>GARAXY 811 - System</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
     <nav class="navbar">
         <div class="nav-left">
-            <div class="logo-text"><i class="fas fa-meteor" style="color: var(--accent-color);"></i> Overnight 815</div>
+            <div class="logo-text"><i class="fas fa-meteor" style="color: var(--accent-color);"></i> GARAXY 811</div>
             <div class="search-bar">
                 <i class="fas fa-search" style="color: var(--text-muted);"></i>
-                <input type="text" id="searchInput" placeholder="ค้นหาชื่อหรือ IG username...">
+                <input type="text" id="searchInput" placeholder="ค้นหาชื่อ หรือ @username...">
             </div>
         </div>
         <div class="nav-right">
@@ -68,7 +67,9 @@
             </div>
             <form id="addForm">
                 <div class="form-group"><label>ชื่อ-นามสกุล / ชื่อเล่น</label><input type="text" id="inpName" required></div>
-                <div class="form-group"><label>ลิงก์ Instagram (URL)</label><input type="url" id="inpIG" placeholder="https://instagram.com/..." required></div>
+                
+                <div class="form-group"><label>ลิงก์ Social (IG หรือ Facebook / ไม่บังคับ)</label><input type="url" id="inpIG" placeholder="https://instagram.com/... หรือ facebook.com/..."></div>
+                
                 <div class="form-group"><label>ตำแหน่ง</label>
                     <select id="inpCategory">
                         <option value="Boss">Boss</option>
@@ -117,7 +118,9 @@
             
             let filtered = users.filter(u => {
                 const matchTab = currentTab === "All" || u.category === currentTab;
-                const matchSearch = u.name.toLowerCase().includes(currentSearch) || u.ig.toLowerCase().includes(currentSearch);
+                // ให้ค้นหาจากลิงก์ได้ด้วย
+                const socialStr = u.ig ? u.ig.toLowerCase() : "";
+                const matchSearch = u.name.toLowerCase().includes(currentSearch) || socialStr.includes(currentSearch);
                 return matchTab && matchSearch;
             });
 
@@ -130,14 +133,41 @@
                 const delBtn = isAdmin ? `<button class="icon-btn del" onclick="deleteUser(${u.id})"><i class="fas fa-trash"></i></button>` : '';
                 const favBtn = `<button class="icon-btn fav" onclick="toggleFav(${u.id})"><i class="${favClass}"></i></button>`;
 
-                let igUrl = u.ig.startsWith('http') ? u.ig : `https://instagram.com/${u.ig}`;
-                let igDisplay = u.ig;
-                if (u.ig.includes('instagram.com/')) {
-                    igDisplay = '@' + u.ig.split('instagram.com/')[1].split('/')[0].split('?')[0];
-                } else if (!u.ig.startsWith('http')) {
-                    igDisplay = '@' + u.ig;
-                } else {
-                    igDisplay = 'Profile Link';
+                // === ระบบแยก Social อัตโนมัติ ===
+                let socialUrl = u.ig ? u.ig.trim() : "";
+                let handleDisplay = "ไม่มีข้อมูลลิงก์";
+                let socialBtnHtml = `<div class="social-btn none"><i class="fas fa-minus"></i> ไม่ได้ระบุ</div>`;
+
+                if (socialUrl !== "") {
+                    // ทำให้ลิงก์สมบูรณ์
+                    if (!socialUrl.startsWith('http')) socialUrl = 'https://' + socialUrl;
+
+                    if (socialUrl.includes('facebook.com') || socialUrl.includes('fb.me')) {
+                        // ถ้าเป็น Facebook
+                        socialBtnHtml = `<a href="${socialUrl}" target="_blank" class="social-btn fb"><i class="fab fa-facebook"></i> Facebook</a>`;
+                        let fbParts = socialUrl.split('facebook.com/')[1];
+                        if (fbParts) {
+                            let fbHandle = fbParts.split('/')[0].split('?')[0];
+                            handleDisplay = (fbHandle === 'profile.php') ? 'Facebook User' : '@' + fbHandle;
+                        } else {
+                            handleDisplay = 'Facebook User';
+                        }
+                    } 
+                    else if (socialUrl.includes('instagram.com')) {
+                        // ถ้าเป็น Instagram
+                        socialBtnHtml = `<a href="${socialUrl}" target="_blank" class="social-btn ig"><i class="fab fa-instagram"></i> Instagram</a>`;
+                        let igParts = socialUrl.split('instagram.com/')[1];
+                        if (igParts) {
+                            handleDisplay = '@' + igParts.split('/')[0].split('?')[0];
+                        } else {
+                            handleDisplay = 'Instagram User';
+                        }
+                    } 
+                    else {
+                        // ถ้าเป็นเว็บอื่นๆ
+                        socialBtnHtml = `<a href="${socialUrl}" target="_blank" class="social-btn other"><i class="fas fa-link"></i> Website</a>`;
+                        handleDisplay = 'Connected Link';
+                    }
                 }
 
                 const card = document.createElement('div');
@@ -150,9 +180,9 @@
                     <img src="${imgSrc}" class="avatar">
                     <div class="user-info">
                         <div class="user-name">${u.name}</div>
-                        <div class="user-ig">${igDisplay}</div>
+                        <div class="user-ig">${handleDisplay}</div>
                     </div>
-                    <a href="${igUrl}" target="_blank" class="ig-link"><i class="fab fa-instagram"></i> Instagram</a>
+                    ${socialBtnHtml}
                 `;
                 container.appendChild(card);
             });
@@ -209,7 +239,7 @@
             e.preventDefault();
             const payload = {
                 name: document.getElementById('inpName').value,
-                ig: document.getElementById('inpIG').value.trim(),
+                ig: document.getElementById('inpIG').value.trim(), // ไม่จำเป็นต้องมีก็ได้
                 category: document.getElementById('inpCategory').value,
                 avatar: document.getElementById('inpAvatar').value
             };
@@ -261,14 +291,14 @@
 
         init();
 
+        // --- ANTI-INSPECT ---
         document.addEventListener('contextmenu', event => event.preventDefault());
-
         document.onkeydown = function(e) {
             if(e.keyCode == 123) { return false; } 
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; }
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; }
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; }
-            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; }
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; } 
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; } 
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; } 
+            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; } 
         }
     </script>
 </body>
